@@ -48,7 +48,11 @@ BASE_PARAMS = dict(n_estimators=1500, learning_rate=0.03, num_leaves=63, subsamp
 
 def make_key(d, cols):
     """Строковый ключ по набору столбцов, пропуски — отдельное значение NA."""
-    return d[cols].astype("object").fillna("NA").astype(str).agg("|".join, axis=1).to_numpy(dtype=object)
+    part = lambda c: d[c].astype("object").fillna("NA").astype(str)
+    k = part(cols[0])
+    for c in cols[1:]:
+        k = k + "|" + part(c)
+    return k.to_numpy(dtype=object)
 
 
 def splits(n_rows, seed=SEED):
