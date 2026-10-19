@@ -38,3 +38,24 @@ def cv_oof(fit_predict, X, y, splits=None, groups=None):
         oof[b] = fit_predict(X.iloc[a], y.iloc[a], X.iloc[b])
         scores.append(rmse(y.iloc[b], oof[b]))
     return oof, np.array(scores)
+
+
+# --- Решения фазы 1 ---
+HOUSE_COLS = ["District", "FloorsTotal", "Walls", "Age"]  # «псевдо-дом»
+BASE_PARAMS = dict(n_estimators=1500, learning_rate=0.03, num_leaves=63, subsample=0.8,
+                   subsample_freq=1, colsample_bytree=0.8, verbose=-1)  # baseline LightGBM
+
+
+def make_key(d, cols):
+    """Строковый ключ по набору столбцов, пропуски — отдельное значение NA."""
+    return d[cols].astype("object").fillna("NA").astype(str).agg("|".join, axis=1).to_numpy(dtype=object)
+
+
+def splits(n_rows, seed=SEED):
+    """Фиксированные фолды: KFold(5) со своим seed. Все варианты сравниваем на одних и тех же фолдах."""
+    return list(KFold(5, shuffle=True, random_state=seed).split(np.zeros(n_rows)))
+
+
+def target_ppm(df):
+    """Рабочий таргет: log(цена за м²). Прогноз цены = exp(прогноз + log(Size))."""
+    return np.log(df.Price / df.Size)
