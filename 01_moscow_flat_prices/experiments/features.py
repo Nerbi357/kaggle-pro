@@ -59,7 +59,7 @@ def target_encoding(train, t_train, apply, keys=TE_KEYS, m=5, inner_folds=5):
     return tr_out, ap_out
 
 
-# --- 3.3 Соседи: точные двойники и соседи по порядку Id ---
+# --- 3.3 Соседи: точные двойники ---
 def twins(train, t_train, apply, is_same):
     """Средний таргет точных двойников (все 10 признаков совпадают) и их число.
     is_same=True, если apply — это сам train: тогда строка не видит саму себя."""
@@ -73,56 +73,9 @@ def twins(train, t_train, apply, is_same):
         return pd.DataFrame({"twin_mean": np.where(c > 0, s / c, np.nan), "twin_n": c}, index=apply.index)
 
 
-def align_positions(train_keys, apply_keys, radii=(3000, 800, 200), smooth=25):
-    """Оценивает, между какими строками train стояла бы каждая строка apply в общем исходном списке.
-    Порядок обеих выборок сохранён, поэтому позиция ≈ линейная + плавно меняющийся сдвиг.
-    Сдвиг уточняем итеративно по ближайшим строкам train с тем же ключом псевдо-дома."""
-    n, m = len(train_keys), len(apply_keys)
-    p0 = np.arange(m) * n / m
-    pos = {}
-    for i, k in enumerate(train_keys):
-        pos.setdefault(k, []).append(i)
-    pos = {k: np.array(v) for k, v in pos.items()}
-    off = np.zeros(m)
-    for R in radii:
-        diff = np.full(m, np.nan)
-        for j, k in enumerate(apply_keys):
-            arr = pos.get(k)
-            if arr is None:
-                continue
-            c = p0[j] + off[j]
-            lo, hi = np.searchsorted(arr, c - R), np.searchsorted(arr, c + R)
-            if hi > lo:
-                cand = arr[lo:hi]
-                diff[j] = cand[np.argmin(np.abs(cand - c))] - p0[j]
-        s = pd.Series(diff).rolling(2 * smooth + 1, center=True, min_periods=3).median()
-        off = s.interpolate(limit_direction="both").fillna(0).values
-    return p0 + off
-
-
-def id_neighbors(train_keys, t_train, query_keys, query_pos, W, exclude=None):
-    """Средний таргет строк train того же псевдо-дома в окне ±W позиций вокруг query_pos."""
-    t_train = np.asarray(t_train)
-    pos = {}
-    for i, k in enumerate(train_keys):
-        pos.setdefault(k, []).append(i)
-    pos = {k: np.array(v) for k, v in pos.items()}
-    mean, cnt = np.full(len(query_keys), np.nan), np.zeros(len(query_keys))
-    for j, (k, p) in enumerate(zip(query_keys, query_pos)):
-        arr = pos.get(k)
-        if arr is None:
-            continue
-        sel = arr[np.searchsorted(arr, p - W):np.searchsorted(arr, p + W, side="right")]
-        if exclude is not None:
-            sel = sel[sel != exclude[j]]
-        if len(sel):
-            mean[j], cnt[j] = t_train[sel].mean(), len(sel)
-    return mean, cnt
-
-
 # --- 3.4 Внешние данные ---
 def geo(df):
-    c = pd.read_csv(DATA / "district_coords.csv").set_index("District")
+    c = pd.read_csv(DATA.parent / "imports" / "district_coords.csv").set_index("District")
     lat, lon = df.District.map(c.lat), df.District.map(c.lon)
     dy = (lat - KREMLIN[0]) * 111.2
     dx = (lon - KREMLIN[1]) * 111.2 * np.cos(np.radians(KREMLIN[0]))
