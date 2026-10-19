@@ -1,0 +1,43 @@
+# Выполняет тетрадь проекта и сохраняет её вместе с файлами из submissions/.
+name: run-notebook
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "Папка проекта, например 01_moscow_flat_prices"
+        required: true
+        default: "01_moscow_flat_prices"
+      notebook:
+        description: "Путь к тетради внутри папки проекта"
+        required: true
+        default: "solution.ipynb"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: ${{ inputs.project }}/requirements.txt
+      - name: Install dependencies
+        run: pip install -r ${{ inputs.project }}/requirements.txt
+      - name: Runner info
+        run: nproc && free -h
+      - name: Execute notebook
+        working-directory: ${{ inputs.project }}
+        run: |
+          start=$(date +%s)
+          jupyter nbconvert --to notebook --execute --inplace \
+            --ExecutePreprocessor.timeout=1200 "${{ inputs.notebook }}"
+          echo "Notebook time: $(( $(date +%s) - start )) s" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: results
+          path: |
+            ${{ inputs.project }}/${{ inputs.notebook }}
+            ${{ inputs.project }}/submissions/
